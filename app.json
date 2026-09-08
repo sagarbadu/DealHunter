@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "DealHunter",
+    "slug": "dealhunter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "dealhunter",
+    "userInterfaceStyle": "light",
+    "ios": { "supportsTablet": true },
+    "android": { "predictiveBackGestureEnabled": false },
+    "web": { "output": "static" },
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true, "reactCompiler": true }
+  }
+}
