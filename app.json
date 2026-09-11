@@ -6,8 +6,8 @@
     "orientation": "portrait",
     "scheme": "dealhunter",
     "userInterfaceStyle": "light",
-    "ios": { "supportsTablet": true },
-    "android": { "predictiveBackGestureEnabled": false },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.dealhunter.app", "buildNumber": "1" },
+    "android": { "predictiveBackGestureEnabled": false, "package": "com.dealhunter.app", "versionCode": 1 },
     "web": { "output": "static" },
     "plugins": ["expo-router"],
     "experiments": { "typedRoutes": true, "reactCompiler": true }

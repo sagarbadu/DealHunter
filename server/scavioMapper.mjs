@@ -15,7 +15,9 @@ function firstString(...values) {
 }
 
 function retailerName(value) {
-  const name = firstString(value, 'Online retailer');
+  const name = typeof value === 'object' && value !== null
+    ? firstString(value.name, value.title, value.store_name, value.retailer, value.domain)
+    : firstString(value, 'Online retailer');
   if (/walmart/i.test(name)) return 'Walmart';
   if (/amazon/i.test(name)) return 'Amazon';
   if (/target/i.test(name)) return 'Target';
@@ -35,35 +37,15 @@ function isGoogleUrl(value) {
     || /google\.[^/]+\/shopping/i.test(value);
 }
 
-function findDirectUrl(value) {
-  if (!value || typeof value !== 'object') return '';
-  const entries = Object.entries(value);
-  const urlKeys = /(url|link|href|product|offer|item)/i;
-  const imageKeys = /(image|thumbnail|photo|icon|logo)/i;
-
-  for (const [key, nestedValue] of entries) {
-    if (imageKeys.test(key)) continue;
-    if (typeof nestedValue === 'string' && /^https?:\/\//i.test(nestedValue) && !isGoogleUrl(nestedValue) && urlKeys.test(key)) {
-      return nestedValue;
-    }
-  }
-
-  for (const [key, nestedValue] of entries) {
-    if (imageKeys.test(key)) continue;
-    if (typeof nestedValue === 'string' && /^https?:\/\//i.test(nestedValue) && !isGoogleUrl(nestedValue)) {
-      return nestedValue;
-    }
-    if (nestedValue && typeof nestedValue === 'object') {
-      const nestedUrl = findDirectUrl(nestedValue);
-      if (nestedUrl) return nestedUrl;
-    }
-  }
-  return '';
+function isRetailerSearchUrl(value) {
+  return /walmart\.com\/search|target\.com\/s\?|amazon\.com\/s\?|bestbuy\.com\/site\/searchpage|ebay\.com\/sch/i.test(value);
 }
 
-function productUrl(row) {
-  const candidates = [row.product_link, row.link, row.url, row.offer_link].filter((value) => typeof value === 'string' && !isGoogleUrl(value));
-  return findDirectUrl(row) || firstString(...candidates);
+function directProductUrl(row) {
+  // Product-detail responses are mapped one store at a time, so `link` keeps
+  // the retailer identity and exact offer URL from product_results.stores[].
+  const candidates = [row.link, row.product_link, row.offer_link, row.product_url, row.url, row.href];
+  return firstString(...candidates.filter((value) => typeof value === 'string' && /^https?:\/\//i.test(value) && !isGoogleUrl(value) && !isRetailerSearchUrl(value)));
 }
 
 function retailerSearchUrl(storeName, name) {
@@ -106,8 +88,10 @@ function mapRow(row, category = 'Electronics') {
   const catalogId = firstString(row.catalog_id, row.product_id);
   if (!catalogId) return null;
   const resolvedImageUrl = imageUrl(row) || 'https://placehold.co/800x600/png?text=DealHunter';
-  const storeName = retailerName(row.source ?? row.seller ?? row.store ?? row.name);
-  const resolvedProductUrl = productUrl(row) || retailerSearchUrl(storeName, name);
+  const retailerValue = row.source ?? row.seller ?? row.store ?? row.merchant ?? row.merchant_name ?? row.seller_name ?? row.retailer ?? row.name;
+  const storeName = retailerName(retailerValue);
+  const verifiedProductUrl = directProductUrl(row);
+  const resolvedProductUrl = verifiedProductUrl || retailerSearchUrl(storeName, name);
   if (!resolvedProductUrl) return null;
 
   return {
@@ -123,6 +107,7 @@ function mapRow(row, category = 'Electronics') {
     discountPercent,
     dealScore: Math.min(99, 60 + Math.round(discountPercent * 0.6)),
     productUrl: resolvedProductUrl,
+    productUrlIsDirect: Boolean(verifiedProductUrl),
     availability: /out of stock|unavailable/i.test(firstString(row.availability, row.delivery)) ? 'Limited stock' : 'In stock',
     description: firstString(row.snippet, row.description, `${name} from ${storeName}.`),
     lastUpdated: new Date().toISOString(),

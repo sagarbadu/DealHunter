@@ -22,6 +22,7 @@ export interface Product {
   discountPercent: number;
   dealScore: number;
   productUrl: string;
+  productUrlIsDirect?: boolean;
   availability: string;
   description: string;
   lastUpdated: string;

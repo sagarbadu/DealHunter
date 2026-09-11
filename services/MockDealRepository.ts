@@ -24,7 +24,8 @@ export class MockDealRepository implements DealRepository {
       product.storeName,
       product.category,
       product.subcategory,
-    ].some((field) => field?.toLocaleLowerCase().includes(normalizedQuery)));
+    ].some((field) => field?.toLocaleLowerCase().includes(normalizedQuery)))
+      .sort((first, second) => second.discountPercent - first.discountPercent || second.dealScore - first.dealScore);
   }
 
   async getDealById(id: string): Promise<Product | null> {

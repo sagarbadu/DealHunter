@@ -1,0 +1,14 @@
+{
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEAL_API_URL": "",
+        "EXPO_PUBLIC_USE_MOCK_FALLBACK": "false"
+      }
+    }
+  }
+}

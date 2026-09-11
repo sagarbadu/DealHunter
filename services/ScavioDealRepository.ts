@@ -2,6 +2,8 @@ import type { DealCategory, Product } from '@/types/product';
 import type { DealRepository } from '@/services/DealRepository';
 
 type DealsResponse = { deals?: Product[] };
+type SearchCacheEntry = { deals: Product[]; expiresAt: number };
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_DEAL_API_URL?.replace(/\/+$/, '');
 
@@ -16,8 +18,13 @@ function dealsFrom(response: DealsResponse): Product[] {
   return Array.isArray(response.deals) ? response.deals : [];
 }
 
+function normalizeSearchQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
 export class ScavioDealRepository implements DealRepository {
   private catalogPromise: Promise<Product[]> | null = null;
+  private searchCache = new Map<string, SearchCacheEntry>();
 
   private async getCatalog(): Promise<Product[]> {
     if (!this.catalogPromise) {
@@ -41,7 +48,7 @@ export class ScavioDealRepository implements DealRepository {
   }
 
   async getDealsByCategory(category: DealCategory): Promise<Product[]> {
-    return (await this.getCatalog()).filter((product) => product.category === category);
+    return dealsFrom(await getJson<DealsResponse>(`/api/deals?category=${encodeURIComponent(category)}`));
   }
 
   async getCategories(): Promise<DealCategory[]> {
@@ -50,7 +57,17 @@ export class ScavioDealRepository implements DealRepository {
   }
 
   async searchDeals(query: string): Promise<Product[]> {
-    return dealsFrom(await getJson<DealsResponse>(`/api/deals?query=${encodeURIComponent(query)}`));
+    const normalizedQuery = normalizeSearchQuery(query);
+    if (!normalizedQuery) return [];
+
+    const cached = this.searchCache.get(normalizedQuery);
+    if (cached && cached.expiresAt > Date.now()) return cached.deals;
+    if (cached) this.searchCache.delete(normalizedQuery);
+
+    const deals = dealsFrom(await getJson<DealsResponse>(`/api/deals?query=${encodeURIComponent(normalizedQuery)}`))
+      .sort((first, second) => second.discountPercent - first.discountPercent || second.dealScore - first.dealScore);
+    if (deals.length > 0) this.searchCache.set(normalizedQuery, { deals, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
+    return deals;
   }
 
   async getDealById(id: string, query?: string): Promise<Product | null> {

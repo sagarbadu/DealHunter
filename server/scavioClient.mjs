@@ -7,7 +7,8 @@ export class ScavioClient {
     if (!apiKey) throw new Error('SCAVIO_API_KEY is not configured');
     this.apiKey = apiKey;
     this.baseUrl = baseUrl.replace(/\/+$/, '');
-    this.requestQueue = Promise.resolve();
+    this.requestQueue = [];
+    this.isProcessingQueue = false;
     this.lastRequestAt = 0;
   }
 
@@ -15,14 +16,40 @@ export class ScavioClient {
     return this.post('/api/v2/google/shopping', { query, ...(onSale ? { on_sale: true } : {}), gl: 'us', hl: 'en', device: 'mobile' });
   }
 
-  async shoppingProduct({ catalogId, query }) {
-    return this.post('/api/v2/google/shopping/product', { catalog_id: catalogId, query, load_all_stores: true, gl: 'us', hl: 'en', device: 'mobile' });
+  async shoppingProduct({ catalogId, query, priority = false }) {
+    return this.post('/api/v2/google/shopping/product', { catalog_id: catalogId, query, load_all_stores: true, gl: 'us', hl: 'en', device: 'mobile' }, { priority });
   }
 
-  async post(path, body) {
-    const request = this.requestQueue.then(() => this.postNow(path, body));
-    this.requestQueue = request.catch(() => undefined);
-    return request;
+  async walmartSearch({ query }) {
+    return this.post('/api/v1/walmart/search', { query, domain: 'com' });
+  }
+
+  post(path, body, { priority = false } = {}) {
+    return new Promise((resolve, reject) => {
+      const request = { path, body, resolve, reject, priority };
+      if (priority) {
+        const firstNormalIndex = this.requestQueue.findIndex((entry) => !entry.priority);
+        if (firstNormalIndex === -1) this.requestQueue.push(request);
+        else this.requestQueue.splice(firstNormalIndex, 0, request);
+      } else {
+        this.requestQueue.push(request);
+      }
+      void this.processQueue();
+    });
+  }
+
+  async processQueue() {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+    while (this.requestQueue.length) {
+      const request = this.requestQueue.shift();
+      try {
+        request.resolve(await this.postNow(request.path, request.body));
+      } catch (error) {
+        request.reject(error);
+      }
+    }
+    this.isProcessingQueue = false;
   }
 
   async postNow(path, body) {

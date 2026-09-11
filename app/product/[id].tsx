@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Image, Linking, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { theme } from '@/constants/theme';
-import { isDealSaved, toggleDealSaved } from '@/services/savedDeals';
+import { getSavedDeals, isDealSaved, toggleDealSaved } from '@/services/savedDeals';
 import { dealRepository } from '@/services/repository';
 import type { Product } from '@/types/product';
 
@@ -37,7 +37,16 @@ export default function ProductDetailsScreen() {
   const [resolvedProduct, setResolvedProduct] = useState<Product | null>(product);
 
   useEffect(() => {
+    if (!product) return;
+    void getSavedDeals().then((savedDeals) => setSaved(savedDeals.some((savedDeal) => savedDeal.id === product.id)));
+  }, [product]);
+
+  useEffect(() => {
+    // Only hit the API when the product we were passed has no usable retailer
+    // link of its own. Products that already carry a direct URL skip the
+    // second lookup entirely, so tapping a deal doesn't spend a credit.
     if (!product?.id.startsWith('scavio-google-shopping:')) return;
+    if (isValidProductUrl(product.productUrl)) return;
     let active = true;
     void dealRepository.getDealById(product.id, product.name).then((liveProduct) => {
       if (active && liveProduct) setResolvedProduct(liveProduct);
@@ -52,7 +61,7 @@ export default function ProductDetailsScreen() {
   const displayProduct = resolvedProduct ?? product;
 
   const canViewDeal = isValidProductUrl(displayProduct.productUrl);
-  const handleSave = () => setSaved(toggleDealSaved(displayProduct.id));
+  const handleSave = async () => setSaved(await toggleDealSaved(displayProduct));
   const handleViewDeal = async () => {
     if (!canViewDeal) return;
     try {
