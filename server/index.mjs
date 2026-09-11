@@ -147,7 +147,15 @@ async function handle(request, response) {
     const cacheKey = `search:${searchQuery}:${category}`;
     const deals = await cachedDeals(cacheKey, async () => {
       const payload = await getClient().shoppingSearch({ query: searchQuery, onSale: false });
-      return mapShoppingResponse(payload, category);
+      const mappedDeals = mapShoppingResponse(payload, category);
+      const shoppingResults = payload?.shopping_results;
+      console.info('[SCAVIO_DIAGNOSTIC]', {
+        shoppingResultsIsArray: Array.isArray(shoppingResults),
+        shoppingResultsCount: Array.isArray(shoppingResults) ? shoppingResults.length : 0,
+        topLevelKeys: Object.keys(payload ?? {}),
+        mappedDealCount: mappedDeals.length,
+      });
+      return mappedDeals;
     });
     if (url.searchParams.has('category')) {
       console.info(`[dealhunter-api] category=${category} query=${JSON.stringify(searchQuery)} deals=${deals.length}`);
